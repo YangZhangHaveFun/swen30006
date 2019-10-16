@@ -70,4 +70,8 @@ public class SquareSet {
 		}
 		return sum;
 	}
+
+	public Die[] getSquares() {
+		return squares;
+	}
 }
