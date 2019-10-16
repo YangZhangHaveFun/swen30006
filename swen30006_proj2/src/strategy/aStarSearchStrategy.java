@@ -1,10 +1,12 @@
 package strategy;
 
+import com.badlogic.gdx.graphics.g3d.particles.ParticleSorter;
 import tiles.MapTile;
 import utilities.Coordinate;
 import world.Car;
 import world.WorldSpatial;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.PriorityQueue;
@@ -12,80 +14,38 @@ import java.util.PriorityQueue;
 public class aStarSearchStrategy {
     private int wallSensitivity;
 
-    /*
-    def waStar(self, gameState, goal, initialPosition):
-    '''
-    This method is to let agent directly head towards the border when it in its own terrain,
-    and the heuristic used in this method is maze distance
-    :param gameState:
-    :param goal: one point on the border
-    :param initialPosition: current position of the agent
-    :return: path
-    '''
-    # print('method waStar get called')
-    # self.actionList = gameState.getLegalActions(self.index)
-    start = time.time()
-    cost = 0
-    priority = 0
-    frontier = util.PriorityQueue()
-    action = []
+    public aStarSearchStrategy(int wallSensitivity) {
+        this.wallSensitivity = wallSensitivity;
+    }
 
-    frontier.push((gameState, initialPosition, action, cost), priority)
-    visited = []
-    last_log = (gameState, initialPosition, action, cost)
-
-    while not frontier.isEmpty():
-        currentState, currentPosition, currentAction, currentCost = frontier.pop()
-        last_log = (currentState, currentPosition, currentAction, currentCost)
-
-        if currentPosition == goal or (time.time() - start > 0.8):
-            if len(currentAction) > 0:
-                self.actionList = currentAction
-                return self.actionList
-            else:
-                self.actionList = currentState.getLegalActions(self.index)
-                return self.actionList
-            # break
-
-        # if (currentPosition not in visited) and (currentPosition in legalPositions):
-        if (currentPosition not in visited):
-            actions = currentState.getLegalActions(self.index)
-            for action in actions:
-                nextState = self.getSuccessor(currentState, action)
-                nextPosition = nextState.getAgentState(self.index).getPosition()
-                x, y = nextPosition
-                if (self.red and x >= gameState.data.layout.width / 2) or (not self.red and x <
-                                                                           gameState.data.layout.width / 2):
-                    continue
-                cost = 1
-                if nextPosition not in visited:
-                    priority = self.getMazeDistance(nextPosition, goal)
-                    frontier.push((nextState, nextPosition, currentAction + [action], currentCost + cost), priority)
-
-        visited.append(currentPosition)
-
-    print('the open list is empty yet not at the goal state')
-    _, _, best_actions, _ = last_log
-    if 'Stop' in best_actions:
-        best_actions.remove('Stop')
-    return best_actions
-    # self.actionList = currentState.getLegalActions(self.index)
-    # print('randomly choose an action in a star')
-    # return self.actionList
- */
-    public LinkedList<WorldSpatial.RelativeDirection> aStarSearch(Coordinate currentPosition, Coordinate goalPosition){
+    public LinkedList<WorldSpatial.RelativeDirection> aStarSearch(Coordinate currentPosition, Coordinate goalPosition, HashMap<Coordinate, MapTile> currentView){
         start = time.time()
         int cost = 0;
         int priority = 0;
-        PriorityQueue<SearchNode> frontier = new PriorityQueue();
+        PriorityQueue<SearchNode> frontier = new PriorityQueue<>();
         LinkedList<WorldSpatial.RelativeDirection> action = new LinkedList<>();
-
-        frontier.push((gameState, initialPosition, action, cost), priority)
+        SearchNode initialNode = new SearchNode(currentPosition, goalPosition, action, cost, priority, currentView);
+        frontier.add(initialNode);
         LinkedList<Coordinate> visited = new LinkedList<>();
-        SearchNode last_log = new SearchNode(); (gameState, initialPosition, action, cost)
+        SearchNode last_log = initialNode;
 
         while (!frontier.isEmpty()){
             SearchNode currentNode = frontier.poll();
+            Coordinate currentPos = currentNode.initialPosition;
+            last_log = currentNode;
+            if (currentPos.equals(goalPosition)){
+                if (currentNode.getActions().size() > 0)
+                    return currentNode.getActions();
+                else
+                    return null;//TODO： find legal actions
+            }
+
+            if (visited.contains(currentPos)){
+                //TODO: find legal actions
+
+            }
+
+
         }
         currentState, currentPosition, currentAction, currentCost = frontier.pop()
         last_log = (currentState, currentPosition, currentAction, currentCost)
@@ -123,6 +83,32 @@ public class aStarSearchStrategy {
         return best_actions
     }
 
+
+    private ArrayList<WorldSpatial.Direction> getLegalActions(HashMap<Coordinate, MapTile> currentView, Coordinate currentPosition){
+        ArrayList<WorldSpatial.Direction> legalActions = new ArrayList<>();
+        for (WorldSpatial.Direction orientation: WorldSpatial.Direction.values()){
+            switch(orientation){
+                case EAST:
+                    if (!checkEast(currentView, currentPosition))
+                        legalActions.add(orientation);
+                    break;
+                case NORTH:
+                    if (!checkNorth(currentView, currentPosition))
+                        legalActions.add(orientation);
+                    break;
+                case SOUTH:
+                    if (!checkSouth(currentView, currentPosition))
+                        legalActions.add(orientation);
+                    break;
+                case WEST:
+                    if (!checkWest(currentView, currentPosition))
+                        legalActions.add(orientation);
+                    break;
+            }
+        }
+        return legalActions;
+    }
+
     /**
      * Check if you have a wall in front of you!
      * @param orientation the orientation we are in based on WorldSpatial
@@ -150,7 +136,7 @@ public class aStarSearchStrategy {
      * @param currentView
      * @return
      */
-    private boolean checkFollowingWall(WorldSpatial.Direction orientation, HashMap<Coordinate, MapTile> currentView, Coordinate currentPosition) {
+    private boolean checkLeftWall(WorldSpatial.Direction orientation, HashMap<Coordinate, MapTile> currentView, Coordinate currentPosition) {
 
         switch(orientation){
             case EAST:
@@ -161,6 +147,28 @@ public class aStarSearchStrategy {
                 return checkEast(currentView, currentPosition);
             case WEST:
                 return checkSouth(currentView, currentPosition);
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Check if the wall is on your left hand side given your orientation
+     * @param orientation
+     * @param currentView
+     * @return
+     */
+    private boolean checkRightWall(WorldSpatial.Direction orientation, HashMap<Coordinate, MapTile> currentView, Coordinate currentPosition) {
+
+        switch(orientation){
+            case EAST:
+                return checkSouth(currentView, currentPosition);
+            case NORTH:
+                return checkEast(currentView, currentPosition);
+            case SOUTH:
+                return checkWest(currentView, currentPosition);
+            case WEST:
+                return checkNorth(currentView, currentPosition);
             default:
                 return false;
         }
@@ -222,17 +230,29 @@ public class aStarSearchStrategy {
         return false;
     }
 
-    class SearchNode implements Comparable{
-        Coordinate initialPosition;
-        Coordinate destPosition;
-        WorldSpatial.RelativeDirection relativeDirection;
-        int cost;
-        int priority = initialPosition.getManhatanDistance(destPosition);
+    class SearchNode implements Comparable<SearchNode>{
+        private Coordinate initialPosition;
+        private Coordinate destPosition;
+        private LinkedList<WorldSpatial.RelativeDirection> actions;
+        private int cost;
+        private int priority;
+        private HashMap<Coordinate, MapTile> currentView;
 
+        public SearchNode(Coordinate initialPosition, Coordinate destPosition,
+                          LinkedList<WorldSpatial.RelativeDirection> actions, int cost, int priority,
+                          HashMap<Coordinate, MapTile> currentView) {
+            this.initialPosition = initialPosition;
+            this.destPosition = destPosition;
+            this.actions = actions;
+            this.cost = cost;
+            this.priority = priority;
+            this.currentView = currentView;
+            this.priority = initialPosition.getManhatanDistance(destPosition);
+        }
 
         @Override
-        public int compareTo(Object o) {
-            return (SearchNode o) ;
+        public int compareTo(SearchNode node) {
+            return this.priority - node.getPriority();
         }
 
         public Coordinate getInitialPosition() {
@@ -243,8 +263,12 @@ public class aStarSearchStrategy {
             return destPosition;
         }
 
-        public WorldSpatial.RelativeDirection getRelativeDirection() {
-            return relativeDirection;
+        public LinkedList<WorldSpatial.RelativeDirection> getActions() {
+            return actions;
+        }
+
+        public HashMap<Coordinate, MapTile> getCurrentView() {
+            return currentView;
         }
 
         public int getCost() {
