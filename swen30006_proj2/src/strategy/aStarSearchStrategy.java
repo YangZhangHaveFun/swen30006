@@ -6,102 +6,73 @@ import utilities.Coordinate;
 import world.Car;
 import world.WorldSpatial;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.PriorityQueue;
+import java.util.*;
 
 public class aStarSearchStrategy {
     private int wallSensitivity;
+    private Car car;
 
-    public aStarSearchStrategy(int wallSensitivity) {
+    public aStarSearchStrategy(int wallSensitivity, Car car) {
         this.wallSensitivity = wallSensitivity;
+        this.car = car;
     }
 
-    public LinkedList<WorldSpatial.RelativeDirection> aStarSearch(Coordinate currentPosition, Coordinate goalPosition, HashMap<Coordinate, MapTile> currentView){
-        start = time.time()
+    public static enum MyDirection{HEAD, LEFT, RIGHT};
+
+    public LinkedList<MyDirection> aStarSearch(Coordinate currentPosition, Coordinate goalPosition, HashMap<Coordinate, MapTile> currentView){
+        long startTime = System.nanoTime();
         int cost = 0;
-        int priority = 0;
+        int priority = currentPosition.getManhatanDistance(goalPosition);
         PriorityQueue<SearchNode> frontier = new PriorityQueue<>();
-        LinkedList<WorldSpatial.RelativeDirection> action = new LinkedList<>();
+        LinkedList<MyDirection> action = new LinkedList<>();
         SearchNode initialNode = new SearchNode(currentPosition, goalPosition, action, cost, priority, currentView);
         frontier.add(initialNode);
         LinkedList<Coordinate> visited = new LinkedList<>();
-        SearchNode last_log = initialNode;
+        //SearchNode last_log = initialNode;
 
-        while (!frontier.isEmpty()){
+        while (!frontier.isEmpty() || System.nanoTime()-startTime/100000000 >= 2){
             SearchNode currentNode = frontier.poll();
             Coordinate currentPos = currentNode.initialPosition;
-            last_log = currentNode;
+            //last_log = currentNode;
             if (currentPos.equals(goalPosition)){
                 if (currentNode.getActions().size() > 0)
                     return currentNode.getActions();
                 else
-                    return null;//TODO： find legal actions
+                    return getRandomElement(getLegalActions(getOrientation(),currentView, currentPos));
             }
 
-            if (visited.contains(currentPos)){
-                //TODO: find legal actions
-
+            if (!visited.contains(currentPos)){
+                LinkedList<MyDirection> actions = getLegalActions(getOrientation(),currentView, currentPos);
+                for (MyDirection direction: actions){
+                    Coordinate nextPosition = getNextPosition(currentPos,getOrientation(), direction, car.getVelocity());
+                    if (!visited.contains(nextPosition)){
+                        int newPriority = nextPosition.getManhatanDistance(goalPosition);
+                        LinkedList<MyDirection> nextAction = new LinkedList<>(currentNode.getActions());
+                        nextAction.addLast(direction);
+                        frontier.add(new SearchNode(nextPosition,goalPosition, nextAction, cost+car.getVelocity(), newPriority, currentView));
+                    }
+                }
             }
-
-
+            visited.addLast(currentPos);
         }
-        currentState, currentPosition, currentAction, currentCost = frontier.pop()
-        last_log = (currentState, currentPosition, currentAction, currentCost)
-
-        if currentPosition == goal :
-        if len(currentAction) > 0:
-        self.actionList = currentAction
-        return self.actionList
-            else:
-        self.actionList = currentState.getLegalActions(self.index)
-        return self.actionList
-            # break
-
-        # if (currentPosition not in visited) and (currentPosition in legalPositions):
-        if (currentPosition not in visited):
-        actions = currentState.getLegalActions(self.index)
-        for action in actions:
-        nextState = self.getSuccessor(currentState, action)
-        nextPosition = nextState.getAgentState(self.index).getPosition()
-        x, y = nextPosition
-        if (self.red and x >= gameState.data.layout.width / 2) or (not self.red and x <
-                gameState.data.layout.width / 2):
-        continue
-                cost = 1
-        if nextPosition not in visited:
-        priority = self.getMazeDistance(nextPosition, goal)
-        frontier.push((nextState, nextPosition, currentAction + [action], currentCost + cost), priority)
-
-        visited.append(currentPosition)
-
-        print('the open list is empty yet not at the goal state')
-        _, _, best_actions, _ = last_log
-        if 'Stop' in best_actions:
-        best_actions.remove('Stop')
-        return best_actions
+        return null;
     }
 
 
-    private ArrayList<WorldSpatial.Direction> getLegalActions(HashMap<Coordinate, MapTile> currentView, Coordinate currentPosition){
-        ArrayList<WorldSpatial.Direction> legalActions = new ArrayList<>();
-        for (WorldSpatial.Direction orientation: WorldSpatial.Direction.values()){
+    private LinkedList<MyDirection> getLegalActions(WorldSpatial.Direction direction, HashMap<Coordinate, MapTile> currentView, Coordinate currentPosition){
+        LinkedList<MyDirection> legalActions = new LinkedList<>();
+        for (MyDirection orientation: MyDirection.values()){
             switch(orientation){
-                case EAST:
-                    if (!checkEast(currentView, currentPosition))
+                case HEAD:
+                    if (!checkWallAhead(direction, currentView, currentPosition))
                         legalActions.add(orientation);
                     break;
-                case NORTH:
-                    if (!checkNorth(currentView, currentPosition))
+                case LEFT:
+                    if (!checkLeftWall(direction, currentView, currentPosition))
                         legalActions.add(orientation);
                     break;
-                case SOUTH:
-                    if (!checkSouth(currentView, currentPosition))
-                        legalActions.add(orientation);
-                    break;
-                case WEST:
-                    if (!checkWest(currentView, currentPosition))
+                case RIGHT:
+                    if (!checkRightWall(direction, currentView, currentPosition))
                         legalActions.add(orientation);
                     break;
             }
@@ -230,16 +201,72 @@ public class aStarSearchStrategy {
         return false;
     }
 
+    public WorldSpatial.Direction getOrientation(){
+        return car.getOrientation();
+    }
+
+    public Coordinate getNextPosition(Coordinate currentPosition, WorldSpatial.Direction orientation, MyDirection direction, int speed){
+        switch (orientation){
+            case EAST:
+                switch (direction){
+                    case HEAD:
+                        return new Coordinate(currentPosition.x+speed, currentPosition.y);
+                    case LEFT:
+                        return new Coordinate(currentPosition.x, currentPosition.y+speed);
+                    case RIGHT:
+                        return new Coordinate(currentPosition.x, currentPosition.y-speed);
+                }
+            case NORTH:
+                switch (direction){
+                    case HEAD:
+                        return new Coordinate(currentPosition.x, currentPosition.y+speed);
+                    case LEFT:
+                        return new Coordinate(currentPosition.x-speed, currentPosition.y);
+                    case RIGHT:
+                        return new Coordinate(currentPosition.x+speed, currentPosition.y);
+                }
+            case SOUTH:
+                switch (direction){
+                    case HEAD:
+                        return new Coordinate(currentPosition.x, currentPosition.y-speed);
+                    case LEFT:
+                        return new Coordinate(currentPosition.x+speed, currentPosition.y);
+                    case RIGHT:
+                        return new Coordinate(currentPosition.x-speed, currentPosition.y);
+                }
+            case WEST:
+                switch (direction){
+                    case HEAD:
+                        return new Coordinate(currentPosition.x-speed, currentPosition.y);
+                    case LEFT:
+                        return new Coordinate(currentPosition.x, currentPosition.y-speed);
+                    case RIGHT:
+                        return new Coordinate(currentPosition.x, currentPosition.y+speed);
+                }
+            default:
+                return currentPosition;
+        }
+    }
+
+    public LinkedList<MyDirection> getRandomElement(LinkedList<MyDirection> list)
+    {
+        Random rand = new Random();
+        MyDirection direction = list.get(rand.nextInt(list.size()));
+        LinkedList<MyDirection> singleElementList = new LinkedList<>();
+        singleElementList.addLast(direction);
+        return singleElementList;
+    }
+
     class SearchNode implements Comparable<SearchNode>{
         private Coordinate initialPosition;
         private Coordinate destPosition;
-        private LinkedList<WorldSpatial.RelativeDirection> actions;
+        private LinkedList<MyDirection> actions;
         private int cost;
         private int priority;
         private HashMap<Coordinate, MapTile> currentView;
 
         public SearchNode(Coordinate initialPosition, Coordinate destPosition,
-                          LinkedList<WorldSpatial.RelativeDirection> actions, int cost, int priority,
+                          LinkedList<MyDirection> actions, int cost, int priority,
                           HashMap<Coordinate, MapTile> currentView) {
             this.initialPosition = initialPosition;
             this.destPosition = destPosition;
@@ -263,7 +290,7 @@ public class aStarSearchStrategy {
             return destPosition;
         }
 
-        public LinkedList<WorldSpatial.RelativeDirection> getActions() {
+        public LinkedList<MyDirection> getActions() {
             return actions;
         }
 
